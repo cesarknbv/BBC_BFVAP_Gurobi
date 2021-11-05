@@ -43,11 +43,9 @@ int BFTVAP_solveOriginal( Instance_data &ins )
 		//model.set(GRB_IntParam_OutputFlag, 0);
 		//model.set(GRB_DoubleParam_Heuristics, 0.0);
 		
-		#ifdef maximization_problem
-			model.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
-		#else
-			model.set(GRB_IntAttr_ModelSense, GRB_MINIMIZE);
-		#endif
+		
+		model.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
+		
 		
 		
 		vec4GRBVar X(I,vec3GRBVar(J,vec2GRBVar(T,vec1GRBvar(V))));
@@ -135,12 +133,12 @@ int BFTVAP_solveOriginal( Instance_data &ins )
 		high_resolution_clock::time_point tbi = high_resolution_clock::now();
 		// Optimize model
 		model.optimize();
-		//#ifdef comparator
-		//if( model.get(GRB_IntAttr_Status) == 3 || model.get(GRB_IntAttr_Status) == 4  ){
-			//cerr << "\nSolution is infeasible or unbounded " << flush;
-			//exit(EXIT_SUCCESS);
-		//}
-		//#endif
+		#ifdef comparator
+		if( model.get(GRB_IntAttr_Status) == 3 || model.get(GRB_IntAttr_Status) == 4  ){
+			cerr << "\nSolution is infeasible or unbounded " << flush;
+			exit(EXIT_SUCCESS);
+		}
+		#endif
 		if( model.get(GRB_IntAttr_Status) == 4 ){
 			model.set(GRB_IntParam_DualReductions, 0);
 			model.set(GRB_IntParam_Presolve, 0);
@@ -453,75 +451,31 @@ int BFTVAP_solveBenders( Instance_data &ins )
 		model.set(GRB_IntParam_LazyConstraints, 1);
 		
 		/* ----------------------Subproblem Structure -------------------------*/
-		#ifdef sub_solver
-			GRBModel modelSubD1 = GRBModel(env);
-			modelSubD1.set(GRB_StringAttr_ModelName, "BFTVAP_sub1");
-			modelSubD1.set(GRB_IntParam_OutputFlag, 0);
-			modelSubD1.set(GRB_StringAttr_ModelName, "D_MCFP1");
-			modelSubD1.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
-			vec2GRBVar      p(I,vec1GRBvar(T));
-			for (t = 0; t < T; t++)
-				for(i = 0; i < I ; i++){
-					var_name = "p("+to_string(i)+","+to_string(t)+")";
-					p.at(i).at(t) = modelSubD1.addVar(-GRB_INFINITY,0.0, 0.0, GRB_CONTINUOUS, var_name);
-				}
-				
-				
-			GRBModel modelSubD2 = GRBModel(env);
-			modelSubD2.set(GRB_StringAttr_ModelName, "BFTVAP_sub2");
-			modelSubD2.set(GRB_IntParam_OutputFlag, 0);
-			modelSubD2.set(GRB_StringAttr_ModelName, "D_MCFP2");
-			modelSubD2.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);///////////cambio///////////
-			vec1GRBvar      w(T);
-			for (t = 0; t < T; t++){
-				var_name = "w("+to_string(t)+")";
-				w.at(t) = modelSubD2.addVar(-GRB_INFINITY, GRB_INFINITY, 0.0, GRB_CONTINUOUS, var_name);
-			}
-		#else
 		
-    	  ListDigraph grafo;
-    	  Node x;
-     
-    	  for( int t(0); t < ins.T+1; t++)
-    		for ( int i(0); i < ins.I; i++)
-    		  x = grafo.addNode();
-    	  Node supersup=grafo.addNode();
-    	  
-    	  Arc arco;
-    	  int count( 0 );
-    	  for(t = 0; t < ins.T; ++t){
-    		 for(i = 0; i < ins.I; ++i){
-    			for(j = 0; j < ins.J; ++j){
-    				//cout << "\ni: " << i << " j: " << j << " t: " << t << flush;
-    				if ( i == j ){
-    					//cout << "\t\t" << i + ins.I * t << "\t" << j + (ins.I * (t+1)) << flush;
-    					arco = grafo.addArc(grafo.nodeFromId(i + ins.I * t),grafo.nodeFromId(j + (ins.I * (t+1))));
-    				}else if ( (t + ins.tau.at(i).at(j)) <= ins.T-1 ){  
-    					//cout << "\t\t" << i + ins.I * t << "\t" << j + ins.I * (t + ins.tau.at(i).at(j)) << flush;
-    					arco = grafo.addArc(grafo.nodeFromId(i + ins.I * t),grafo.nodeFromId(j + ins.I * (t + ins.tau.at(i).at(j))));
-    				}
-    				else if ( (t + ins.tau.at(i).at(j)) > ins.T-1 ){
-    					//cout << "\t\t" << i + ins.I * t << "\t" << ((ins.I*(ins.T+1)+1))-1-(ins.I)+j << flush;  
-    					arco = grafo.addArc(grafo.nodeFromId(i + ins.I * t),grafo.nodeFromId(((ins.I*(ins.T+1)+1))-1-(ins.I)+j)) ;
-    				}
-    				//cout << "\t\t" << grafo.id(arco) << flush;
-    			}
-    		 }
-    	  }
-    		
-    	  for(t = 0; t < ins.T; ++t){
-    		 for(i = 0; i < ins.I; ++i){
-    			arco = grafo.addArc(supersup,grafo.nodeFromId(i + ins.I * t));
-    		 }
-    	  }
-    	  
-    	  NodeDou divergence (grafo);
-    	  ArcDou  costo      (grafo);
-    	  ArcBool filter     (grafo, true);
-    	  NodeDou potential         (grafo);	
-    	  vec1Dou             diver(T,0.0);
-	      vec1Dou             dual(T,0.0);	
-		#endif
+		GRBModel modelSubD1 = GRBModel(env);
+		modelSubD1.set(GRB_StringAttr_ModelName, "BFTVAP_sub1");
+		modelSubD1.set(GRB_IntParam_OutputFlag, 0);
+		modelSubD1.set(GRB_StringAttr_ModelName, "D_MCFP1");
+		modelSubD1.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);
+		vec2GRBVar      p(I,vec1GRBvar(T));
+		for (t = 0; t < T; t++)
+			for(i = 0; i < I ; i++){
+				var_name = "p("+to_string(i)+","+to_string(t)+")";
+				p.at(i).at(t) = modelSubD1.addVar(-GRB_INFINITY,0.0, 0.0, GRB_CONTINUOUS, var_name);
+			}
+			
+			
+		GRBModel modelSubD2 = GRBModel(env);
+		modelSubD2.set(GRB_StringAttr_ModelName, "BFTVAP_sub2");
+		modelSubD2.set(GRB_IntParam_OutputFlag, 0);
+		modelSubD2.set(GRB_StringAttr_ModelName, "D_MCFP2");
+		modelSubD2.set(GRB_IntAttr_ModelSense, GRB_MAXIMIZE);///////////cambio///////////
+		vec1GRBvar      w(T);
+		for (t = 0; t < T; t++){
+			var_name = "w("+to_string(t)+")";
+			w.at(t) = modelSubD2.addVar(-GRB_INFINITY, GRB_INFINITY, 0.0, GRB_CONTINUOUS, var_name);
+		}
+		
 	
 	
 		
@@ -531,11 +485,8 @@ int BFTVAP_solveBenders( Instance_data &ins )
 		cout << "\nSubproblem structure has been set " << endl;
 		vec4GRBVar X(I,vec3GRBVar(J,vec2GRBVar(T,vec1GRBvar(V))));
 		vec1GRBvar u(V);
-		#ifndef second_benders_BFVAP
 		vec2GRBVar uu(I,vec1GRBvar(J));
-		#else
-		vec3GRBVar Q(I,vec2GRBVar(J,vec1GRBvar(T)));
-		#endif
+		
 		
 		
 		
@@ -546,19 +497,7 @@ int BFTVAP_solveBenders( Instance_data &ins )
 						var_name = "x("+to_string(i)+","+to_string(j)+","+to_string(t)+","+to_string(v)+")";
 						X.at(i).at(j).at(t).at(v) = model.addVar(0.0, ((A.at(i).at(j).at(v)==0)||(i==j)?0.0:(t+tau.at(i).at(j)>T-1?total_dem:GRB_INFINITY)), pro.at(i).at(j).at(v), GRB_INTEGER, var_name);
 					}
-		#ifdef second_benders_BFVAP
-		for(i = 0; i < I ; i++)
-			for(j = 0; j < J; j++)
-				for (t = 0; t < T; t++){
-					var_name="q("+to_string(i)+","+to_string(j)+","+to_string(t)+")";
-					Q.at(i).at(j).at(t) = model.addVar(0.0, (t==T-1?0.0:GRB_INFINITY), -In.at(i).at(j).at(t), GRB_CONTINUOUS, var_name);
-				}
-		#endif
 		
-		//X.at(0).at(1).at(0).at(0).set(GRB_DoubleAttr_LB,1) ;
-		//X.at(0).at(1).at(0).at(0).set(GRB_DoubleAttr_UB,1) ;
-		//X.at(0).at(1).at(1).at(0).set(GRB_DoubleAttr_LB,2) ;
-		//X.at(0).at(1).at(1).at(0).set(GRB_DoubleAttr_UB,2) ;
 		
 		cout << "\nVariables X has been set " << endl;			
 		for (v = 0; v < V; v++){
@@ -567,7 +506,7 @@ int BFTVAP_solveBenders( Instance_data &ins )
 		}
 		cout << "\nVariables U has been set " << endl;	
 		
-		#ifndef second_benders_BFVAP
+	
 		for(i = 0; i < I ; i++)
 			for(j = 0; j < J; j++){
 				var_name = "uu("+to_string(i)+","+to_string(j)+")";
@@ -575,24 +514,7 @@ int BFTVAP_solveBenders( Instance_data &ins )
 		    }
 		    
 		cout << "\nVariables UU has been set " << endl;	
-		#endif
 		
-		#ifdef second_benders_BFVAP
-		for(i = 0; i < I ; i++)
-			for(j = 0; j < J; j++)
-				for (t = 0; t < T; t++){
-					    var_name="backl("+to_string(i)+","+to_string(j)+","+to_string(t)+")";
-					    GRBLinExpr sum_expr = 0;	 
-						sum_expr += Q[i][j][t];
-						if(t > 0) sum_expr -= Q[i][j][t-1];
-						for(v = 0; v < V; v++) sum_expr += X[i][j][t][v];
-						model.addConstr(sum_expr, GRB_EQUAL ,dem.at(i).at(j).at(t), var_name);
-						//model.addConstr(sum_expr, GRB_LESS_EQUAL ,dem.at(i).at(j).at(t), var_name);
-						//model.addConstr(sum_expr, GRB_GREATER_EQUAL ,dem.at(i).at(j).at(t), var_name);
-					}
-		
-		cout << "\nBacklog COnstraints is done " << flush;
-		#endif
 		
 		for (i = 0; i < I; i++)
 			for (t = 0; t < T; t++){
@@ -607,46 +529,12 @@ int BFTVAP_solveBenders( Instance_data &ins )
 		cout << "\nTerminal Capacity has been set " << endl;	
 		model.update();
 		
-		//vec1GRBvar Qnique(T)
-		//for (t = 0; t < T; t++){
-			//var_name="q("+to_string(t)+")";
-			//Qnique.at(t) = model.addVar(0.0, (t==T-1?0.0:GRB_INFINITY), -In.at(i).at(j).at(t), GRB_CONTINUOUS, var_name);
-		//}
-		//for (t = 0; t < T; t++){
-			//cout << "\nt: " << t << flush;
-				//var_name="backl("+to_string(t)+")";
-				//GRBLinExpr sum_expr = 0;	 
-				//sum_expr += Qnique[t];
-				//if(t > 0) sum_expr -= Qnique[t-1];
-				//cout << "\nok" << flush;
-				//double sum_dem(0.0);
-				//for(i = 0; i < I ; i++)
-					//for(j = 0; j < J; j++){
-						//sum_dem += dem.at(i).at(j).at(t);
-						//for(v = 0; v < V; v++) sum_expr += X[i][j][t][v];
-					//}
-				//cout << "\nok" << flush;
-				//model.addConstr(sum_expr, GRB_EQUAL ,sum_dem, var_name);
-		//}
-		
-		//cout << "\nBacklogAgged COnstraints is done " << flush;
-		//model.update();
 		cout << "\nSize of constraints: " << model.get(GRB_IntAttr_NumConstrs) << flush;
 		//model.write("Benders_BFTVAP.lp");
 		
-		#ifdef sub_solver
+		
 		BFTBendersSub cb = BFTBendersSub(ins,X,u,uu,p,w,modelSubD1,modelSubD2);
-		#else
-		BFTBendersSub cb = BFTBendersSub(ins,X,u
-		#ifndef second_benders_BFVAP
-			,uu
-		#endif
-		,grafo,divergence,costo,filter,potential
-		#ifndef second_benders_BFVAP
-			,diver,dual
-		#endif
-		);
-		#endif
+		
 		model.setCallback(&cb);
 		
 		vec4Dou X_sol(I,vec3Dou(J,vec2Dou(T,vec1Dou(V,0.0))));   
